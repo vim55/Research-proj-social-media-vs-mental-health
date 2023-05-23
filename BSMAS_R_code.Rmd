@@ -1,0 +1,287 @@
+---
+title: "BSMAS_R_code"
+output: html_document
+date: "2023-05-09"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(dplyr)
+library(tibble)
+library(tidyverse)
+library(haven)
+library(mlogit)
+library(PerformanceAnalytics)
+# show data description, available for SPSS (.sav) file
+library(sjPlot)
+```
+
+```{r}
+dat <- read_sav("3_SNSdatasetENG.sav")
+```
+
+```{r}
+dat %>% sjPlot::view_df()
+```
+
+```{r}
+head(dat)
+dim(dat) 
+dat %>% group_by(Gender) %>% count() # 1 - male, 2 - female
+```
+
+# data cleaning
+clean using filter variable
+```{r}
+dim(dat)
+dim(dat[dat$`filter_$` == 0, ])
+dim(dat[dat$`filter_$` == 1, ])
+```
+
+```{r}
+dat_clean <- dat[dat$`filter_$` != 0 & is.na(dat$`filter_$`) == FALSE, ]
+
+dim(dat_clean)
+head(dat_clean)
+```
+```{r}
+dat_clean <- dat_clean %>% 
+  select('FB1', 'FB2', 'FB3', 'FB4', 'FB5', 'FB6', 
+         'RSES1', 'RSES2', 'RSES3', 'RSES4', 'RSES5', 'RSES6', 'RSES7', 'RSES8', 'RSES9', 'RSES10', 'RSES_avg', 
+         'CESD1', 'CESD2', 'CESD3', 'CESD4', 'CESD5', 'CESD6', 'CESD_avg',
+         'Gender', 'Age', 'Weekly_Internet_time2', 'Weekly_SNS_time2')
+```
+
+```{r}
+dat_clean
+```
+# further remove any na values
+```{r}
+dat_omNA <- na.omit(dat_clean)
+head(dat_omNA)
+nrow(dat_omNA)
+```
+
+# FB1 - Salience
+# FB2 - Tolerance
+# FB3 - Mood mod
+# FB4 - Relapse
+# FB5 - Withdrawal symptoms
+# FB6 - Conflict
+
+# Confirmatory Factor Analysis (CFA)
+```{r}
+library(lavaan)
+set.seed(135711)
+
+CFA_model <- 'BSMAS =~ FB1 + FB2 + FB3 + FB4 + FB5 + FB6'
+
+CFA_fit <- cfa(CFA_model, data=dat_omNA, missing='fiml')
+
+# CFA.fit.measures to get global fit, standardized to get std factor loading
+summary(CFA_fit, fit.measures=TRUE, standardized=TRUE)
+```
+
+```{r}
+dat_tidyLPA <- dat_omNA %>%
+  mutate_at(c('FB1', 'FB2', 'FB3', 'FB4', 'FB5', 'FB6'), as.numeric)
+```
+
+```{r}
+suppressMessages(library(tidyLPA))
+suppressMessages(mod_1c_v1 <- estimate_profiles(df = dat_tidyLPA[1:6], n_profiles = 2:4))
+```
+
+
+```{r}
+mod_1c_v1
+```
+
+```{r}
+comp <- suppressWarnings(compare_solutions(mod_1c_v1))
+comp$fits[,c('Model','Classes','LogLik', 'AIC', 'BIC', 'SABIC', 'Entropy', 'BLRT_val', 'BLRT_p')]
+```
+
+```{r}
+comp$best
+```
+
+```{r}
+myplot <- plot_profiles(mod_1c_v1$model_1_class_3, rawdata = FALSE, add_line = T)
+```
+
+
+```{r}
+# 1-'at-risk', 2 - 'no-risk', 3 - 'low-risk'
+myxlable <- c('Salience', 'Tolerance', 'Mood modification' , 'Relapse', 'Withdrawal', 'Conflic')
+
+myplot + scale_colour_discrete(labels=c('at-risk (n=450)', 'no-risk (n=4191)', 'low-risk (n=884)')) +
+  scale_shape_discrete(guide=FALSE) +
+  xlab("Components of the Bergen Social Media Addiction Scale") + ylab("Cluster means") +
+  scale_linetype(guide=FALSE) +
+  theme(legend.position="top")
+
+```
+# get profile data
+```{r}
+latent_data <- get_data(mod_1c_v1$model_1_class_3)
+```
+
+Extract data from the latent profile
+```{r}
+unique(latent_data$Class)
+```
+
+# Check sum number of each class
+```{r}
+# 1-'at-risk', 2 - 'no-risk', 3 - 'low-risk'
+sum(latent_data$Class == 1)
+sum(latent_data$Class == 2)
+sum(latent_data$Class == 3)
+```
+```{r}
+sum(latent_data$Class == 1)/(sum(latent_data$Class == 1)+sum(latent_data$Class == 2)+sum(latent_data$Class == 3))*100
+```
+# select data 
+```{r}
+latent_data_select <- latent_data %>% select('FB1', 'FB2', 'FB3', 'FB4', 'FB5', 'FB6', 'Class')
+head(latent_data_select)
+```
+
+# compare latent profile data rows to orgianl data rows, if they match then append class column directly to orignal data 
+```{r}
+latent_data_select[1:10,]
+
+```
+```{r}
+dat_tidyLPA[1:10, 1:6]
+```
+# data matches, hence append class column directly to original data
+```{r}
+dat_tidyLPA['Class'] = latent_data_select$Class
+head(dat_tidyLPA)
+```
+# replicate table 2.Comparison of the Three Latent Classes: Testing Equality for Latent Class Predictors.
+```{r}
+# class 1-'at-risk', 2 - 'no-risk', 3 - 'low-risk'
+dat_tidyLPA %>% group_by(Class) %>% summarize(Male = sum(Gender == 1), Female = sum(Gender == 2), Age = mean(Age), Weekly_internet_use = mean(Weekly_Internet_time2), Weekly_social_media_use = mean(Weekly_SNS_time2), Self_esteem = mean(RSES_avg), Level_of_depressive_symptoms = mean(CESD_avg))
+```
+
+# replicate - sensitivity analysis: Specificity and Sensitivity test
+```{r}
+# add actual for if class = 1-'at-risk'
+data_sensAna <- dat_tidyLPA %>% mutate(actual = ifelse(Class == 1, 0,1))
+data_sensAna
+```
+
+```{r}
+sum(data_sensAna$actual==0)
+```
+```{r}
+# add total FB
+data_sensAna <- data_sensAna %>% mutate(tot_FB = FB1+FB2+FB3+FB4+FB5+FB6)
+data_sensAna
+```
+
+```{r}
+data_sensAna %>% filter(actual==0)
+```
+# testing for confusion matrix
+```{r}
+library(caret)
+cut_off_point <- 19
+pred <- factor(ifelse(data_sensAna$tot_FB >= cut_off_point, 0, 1))
+cf <- confusionMatrix(factor(data_sensAna$actual), pred)
+confusionMatrix(factor(data_sensAna$actual), pred)
+```
+
+# perform actual sensitivity analysis
+```{r}
+# create a empty dataframe to store results
+sens_table <- 0
+sens_table
+for (cut_off in 12:23) {
+  pred <- factor(ifelse(data_sensAna$tot_FB >= cut_off, 0, 1))
+  cf <- confusionMatrix(factor(data_sensAna$actual), pred)
+  sens_row <- c(cut_off,
+                cf$table[1],
+                cf$table[4],
+                cf$table[3],
+                cf$table[2],
+                cf$byClass['Sensitivity'],
+                cf$byClass['Specificity'],
+                cf$byClass['Pos Pred Value'],
+                cf$byClass['Neg Pred Value'],
+                cf$overall['Accuracy'])
+  
+  sens_table <- rbind.data.frame(sens_table, sens_row)
+  print(cut_off)
+}
+# # rename dataframe column 
+colnames(sens_table) <- c('cut_off_point', 'true_positive', 'true_negative', 'false_positive', 'false_negative', 'Sensitivity', 'Specificity', 'PPV', 'NPV', 'Accuracy')
+```
+```{r}
+sens_table[2:13,]
+```
+
+# perfrom SEM
+```{r}
+BSMAS_SEM <- '
+# measurement model
+BSMAS =~ FB1 + FB2 + FB3 + FB4 + FB5 + FB6
+CESD =~ CESD1 + CESD3 + CESD4 + CESD5 + CESD6
+RSES =~ RSES1 + RSES2 + RSES3 + RSES4 + RSES5 + RSES6 + RSES7 + RSES8 + RSES9 + RSES10
+# regressions
+CESD ~ BSMAS
+RSES ~ BSMAS 
+'
+
+BSMAS_SEM_fit <- sem(BSMAS_SEM, data=dat_tidyLPA)
+summary(BSMAS_SEM_fit, standardized=TRUE, fit.measures=TRUE)
+```
+```{r}
+BSMAS_CESD_SEM <- '
+# measurement model
+BSMAS =~ FB1 + FB2 + FB3 + FB4 + FB5 + FB6
+CESD =~ CESD1 + CESD3 + CESD4 + CESD5 + CESD6
+# regressions
+CESD ~ BSMAS
+'
+
+BSMAS_CESD_SEM_fit <- sem(BSMAS_CESD_SEM, data=dat_tidyLPA)
+summary(BSMAS_CESD_SEM_fit, standardized=TRUE, fit.measures=TRUE)
+```
+
+
+```{r}
+BSMAS_RSES_SEM <- '
+# measurement model
+BSMAS =~ FB1 + FB2 + FB3 + FB4 + FB5 + FB6
+RSES =~ RSES1 + RSES2 + RSES3 + RSES4 + RSES5 + RSES6 + RSES7 + RSES8 + RSES9 + RSES10
+# regressions
+RSES ~ BSMAS 
+'
+
+BSMAS_RSES_SEM_fit <- sem(BSMAS_RSES_SEM, data=dat_tidyLPA)
+summary(BSMAS_RSES_SEM_fit, standardized=TRUE, fit.measures=TRUE)
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
