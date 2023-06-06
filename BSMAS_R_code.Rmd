@@ -103,6 +103,7 @@ mod_1c_v1
 ```{r}
 comp <- suppressWarnings(compare_solutions(mod_1c_v1))
 comp$fits[,c('Model','Classes','LogLik', 'AIC', 'BIC', 'SABIC', 'Entropy', 'BLRT_val', 'BLRT_p')]
+comp$fits
 ```
 
 ```{r}
@@ -116,9 +117,8 @@ myplot <- plot_profiles(mod_1c_v1$model_1_class_3, rawdata = FALSE, add_line = T
 
 ```{r}
 # 1-'at-risk', 2 - 'no-risk', 3 - 'low-risk'
-myxlable <- c('Salience', 'Tolerance', 'Mood modification' , 'Relapse', 'Withdrawal', 'Conflic')
-
 myplot + scale_colour_discrete(labels=c('at-risk (n=450)', 'no-risk (n=4191)', 'low-risk (n=884)')) +
+  scale_y_continuous(breaks = seq(0, 4.5, by=0.5), limits=c(0,4.5)) + 
   scale_shape_discrete(guide=FALSE) +
   xlab("Components of the Bergen Social Media Addiction Scale") + ylab("Cluster means") +
   scale_linetype(guide=FALSE) +
@@ -192,20 +192,22 @@ data_sensAna %>% filter(actual==0)
 # testing for confusion matrix
 ```{r}
 library(caret)
+# testing for one cut-off point
 cut_off_point <- 19
+# if greater than cut off point then 0 - 'at-risk', else 1- 'not at risk'
 pred <- factor(ifelse(data_sensAna$tot_FB >= cut_off_point, 0, 1))
 cf <- confusionMatrix(factor(data_sensAna$actual), pred)
-confusionMatrix(factor(data_sensAna$actual), pred)
+cf
 ```
 
 # perform actual sensitivity analysis
 ```{r}
-# create a empty dataframe to store results
+# create a empty dataframe to store all cut off results
 sens_table <- 0
 sens_table
 for (cut_off in 12:23) {
   pred <- factor(ifelse(data_sensAna$tot_FB >= cut_off, 0, 1))
-  cf <- confusionMatrix(factor(data_sensAna$actual), pred)
+  cf <- confusionMatrix(pred, factor(data_sensAna$actual) )
   sens_row <- c(cut_off,
                 cf$table[1],
                 cf$table[4],
