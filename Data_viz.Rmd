@@ -1,0 +1,150 @@
+---
+title: "Data_viz"
+output: html_document
+date: "2023-05-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r, include=FALSE}
+library(dplyr)
+library(ggplot2)
+library(tibble)
+library(tidyverse)
+library(haven)
+library(mlogit)
+library(PerformanceAnalytics)
+# show data description, available for SPSS (.sav) file
+library(sjPlot)
+```
+
+```{r}
+dat <- read_sav("3_SNSdatasetENG.sav")
+```
+
+```{r}
+dat %>% sjPlot::view_df()
+```
+
+```{r}
+head(dat)
+dim(dat) 
+dat %>% group_by(Gender) %>% count() # 1 - male, 2 - female
+```
+
+# data cleaning
+clean using filter variable
+```{r}
+dim(dat)
+dim(dat[dat$`filter_$` == 0, ])
+dim(dat[dat$`filter_$` == 1, ])
+```
+
+```{r}
+dat_clean <- dat[dat$`filter_$` != 0 & is.na(dat$`filter_$`) == FALSE, ]
+
+dim(dat_clean)
+head(dat_clean)
+```
+```{r}
+dat_clean <- dat_clean %>% 
+  select('FB1', 'FB2', 'FB3', 'FB4', 'FB5', 'FB6', 
+         'RSES1', 'RSES2', 'RSES3', 'RSES4', 'RSES5', 'RSES6', 'RSES7', 'RSES8', 'RSES9', 'RSES10', 'RSES_avg', 
+         'CESD1', 'CESD2', 'CESD3', 'CESD4', 'CESD5', 'CESD6', 'CESD_avg',
+         'Gender', 'Age', 'Weekly_Internet_time2', 'Weekly_SNS_time2')
+```
+
+```{r}
+dat_clean
+```
+# further remove any na values
+```{r}
+dat_omNA <- na.omit(dat_clean)
+head(dat_omNA)
+nrow(dat_omNA)
+```
+```{r}
+summary(dat_omNA)
+```
+```{r}
+nrow(filter(dat_omNA, Age == 16))
+nrow(filter(dat_omNA, Age == 17))
+```
+
+```{r}
+dat_viz <- dat_omNA
+dat_viz$Gender <- as.factor(dat_viz$Gender)
+```
+
+
+```{r}
+dat_viz %>% ggplot(aes(x=Gender)) + geom_bar() +
+  geom_text(aes(label = ..count..), stat = "count", vjust = 1.5, colour = "white") +
+  ggtitle("Gender Distribution") + xlab("Gender: 1-male, 2-female") + ylab("Count") +
+  scale_fill_discrete(labels = c("Male", "Female")) +
+  theme_bw()
+
+```
+
+
+```{r}
+dat_viz %>% group_by(Gender) %>% summarise(avgRSES = round(sum(RSES_avg)/length(RSES_avg), 3)) %>% 
+  ggplot(aes(x=Gender, y=avgRSES)) + 
+  geom_text(aes(label = avgRSES), position=position_dodge(width=0.9), vjust=-0.25, colour = "black") +
+  ggtitle("Average Self-esteem Scale ( 1 - 4 ) by Gender") + xlab("Gender: 1-male, 2-female") + ylab("Average RSES Score") +
+  scale_fill_discrete(labels = c("Male", "Female")) +
+  geom_col() +
+  theme_bw()
+```
+
+```{r}
+dat_viz %>% group_by(Gender) %>% summarise(avgCESD = round(sum(CESD_avg)/length(CESD_avg), 3)) %>% 
+  ggplot(aes(x=Gender, y=avgCESD)) + 
+  geom_text(aes(label = avgCESD), position=position_dodge(width=0.9), vjust=-0.25, colour = "black") +
+  ggtitle("Average Depression Scale ( 1 - 4 ) by Gender") + xlab("Gender: 1-male, 2-female") + ylab("Average CESD Score") +
+  scale_fill_discrete(labels = c("Male", "Female")) +
+  geom_col() +
+  theme_bw()
+```
+
+
+```{r}
+dat_viz %>% group_by(Gender) %>% summarise(avgSNS = round(sum(Weekly_SNS_time2)/length(Weekly_SNS_time2), 3)) %>% 
+  ggplot(aes(x=Gender, y=avgSNS)) + 
+  geom_text(aes(label = avgSNS), position=position_dodge(width=0.9), vjust=-0.25, colour = "black") +
+  ggtitle("Average weekly time spend on SNS by Gender") + xlab("Gender: 1-male, 2-female") + ylab("Hours") +
+  scale_fill_discrete(labels = c("Male", "Female")) +
+  geom_col() +
+  theme_bw()
+```
+
+
+```{r}
+dat_viz %>% group_by(Gender) %>% summarise(avgBSMAS =   round(sum((FB1+FB2+FB3+FB4+FB5+FB6)/6)/length(FB1),3) ) %>% 
+  ggplot(aes(x=Gender, y=avgBSMAS)) + 
+  geom_text(aes(label = avgBSMAS), position=position_dodge(width=0.9), vjust=-0.25, colour = "black") +
+  ggtitle("Average BSMAS score (1-5) by Gender") + xlab("Gender: 1-male, 2-female") + ylab("Average BSMAS score") +
+  scale_fill_discrete(labels = c("Male", "Female")) +
+  geom_col() +
+  theme_bw()
+```
+
+
+```{r}
+par(mfrow=c(2,2))
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
